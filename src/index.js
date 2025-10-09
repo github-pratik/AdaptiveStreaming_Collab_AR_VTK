@@ -496,154 +496,56 @@ function getNetworkQuality() {
   return 'very-low';
 }
 
+
 // ----------------------------------------------------------------------------
-// Adaptive Streaming Recommendations System
+// Visual Quality Change Notifications
 // ----------------------------------------------------------------------------
 
-function updateAdaptiveStreamingRecommendations() {
-  const recommendationsDisplay = document.getElementById('adaptive-streaming-recommendations');
-  if (!recommendationsDisplay) return;
-
-  const currentMetrics = analyzeCurrentMetrics();
-  const recommendations = generateRecommendations(currentMetrics);
-  
-  recommendationsDisplay.innerHTML = `
-    <strong>🎯 Adaptive Streaming Recommendations:</strong><br>
-    ${recommendations.currentStatus}<br>
-    <strong>📊 Optimal Scenarios:</strong><br>
-    ${recommendations.optimalScenarios}<br>
-    <strong>⚡ Performance Tips:</strong><br>
-    ${recommendations.performanceTips}
+// Show visual quality change notification
+function showQualityChange(newQuality) {
+  // Create floating quality indicator
+  const qualityIndicator = document.createElement('div');
+  qualityIndicator.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: ${newQuality === 'high' ? '#4CAF50' : newQuality === 'medium' ? '#FF9800' : '#f44336'};
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 14px;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    animation: fadeInOut 3s ease-in-out;
+    border: 2px solid ${newQuality === 'high' ? '#2E7D32' : newQuality === 'medium' ? '#F57C00' : '#C62828'};
   `;
+  qualityIndicator.textContent = `🎯 Quality: ${newQuality.toUpperCase()}`;
+  document.body.appendChild(qualityIndicator);
+  
+  // Add CSS animation if not already present
+  if (!document.getElementById('quality-animation-style')) {
+    const style = document.createElement('style');
+    style.id = 'quality-animation-style';
+    style.textContent = `
+      @keyframes fadeInOut {
+        0% { opacity: 0; transform: translateY(-20px); }
+        20% { opacity: 1; transform: translateY(0); }
+        80% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-20px); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // Remove after 3 seconds
+  setTimeout(() => {
+    if (qualityIndicator.parentNode) {
+      qualityIndicator.parentNode.removeChild(qualityIndicator);
+    }
+  }, 3000);
 }
 
-function analyzeCurrentMetrics() {
-  const fps = adaptiveStreaming.currentFPS;
-  const memory = getMemoryUsageRatio() * 100;
-  const networkSpeed = networkMonitor.actualSpeed;
-  const latency = networkMonitor.latency;
-  const networkQuality = getNetworkQuality();
-  
-  // Calculate performance score (0-100)
-  let performanceScore = 0;
-  
-  // FPS contribution (40% weight)
-  if (fps >= 60) performanceScore += 40;
-  else if (fps >= 45) performanceScore += 30;
-  else if (fps >= 30) performanceScore += 20;
-  else if (fps >= 15) performanceScore += 10;
-  
-  // Memory contribution (30% weight)
-  if (memory < 50) performanceScore += 30;
-  else if (memory < 70) performanceScore += 20;
-  else if (memory < 85) performanceScore += 10;
-  
-  // Network contribution (30% weight)
-  if (networkSpeed >= 10) performanceScore += 30;
-  else if (networkSpeed >= 5) performanceScore += 20;
-  else if (networkSpeed >= 2) performanceScore += 10;
-  
-  return {
-    fps,
-    memory,
-    networkSpeed,
-    latency,
-    networkQuality,
-    performanceScore,
-    viewportCullingEnabled: viewportCuller.enabled,
-    lodEnabled: lodSystem.enabled,
-    adaptiveStreamingEnabled: adaptiveStreaming.enabled
-  };
-}
-
-function generateRecommendations(metrics) {
-  const { fps, memory, networkSpeed, latency, networkQuality, performanceScore } = metrics;
-  
-  // Current status
-  let currentStatus = '';
-  if (performanceScore >= 80) {
-    currentStatus = '🟢 <strong>Excellent Performance</strong> - All systems optimal';
-  } else if (performanceScore >= 60) {
-    currentStatus = '🟡 <strong>Good Performance</strong> - Minor optimizations available';
-  } else if (performanceScore >= 40) {
-    currentStatus = '🟠 <strong>Fair Performance</strong> - Several optimizations needed';
-  } else {
-    currentStatus = '🔴 <strong>Poor Performance</strong> - Major optimizations required';
-  }
-  
-  // Optimal scenarios based on current metrics
-  let optimalScenarios = '';
-  
-  if (networkSpeed >= 10 && latency < 50) {
-    optimalScenarios += '✅ <strong>Ultra High Quality:</strong> Enable all features<br>';
-    optimalScenarios += '   • Viewport Culling: ON<br>';
-    optimalScenarios += '   • LOD System: ON<br>';
-    optimalScenarios += '   • Gaze Prediction: ON<br>';
-    optimalScenarios += '   • Target FPS: 60<br>';
-  } else if (networkSpeed >= 5 && latency < 100) {
-    optimalScenarios += '✅ <strong>High Quality:</strong> Enable core optimizations<br>';
-    optimalScenarios += '   • Viewport Culling: ON<br>';
-    optimalScenarios += '   • LOD System: ON<br>';
-    optimalScenarios += '   • Gaze Prediction: OFF<br>';
-    optimalScenarios += '   • Target FPS: 45<br>';
-  } else if (networkSpeed >= 2 && latency < 200) {
-    optimalScenarios += '✅ <strong>Medium Quality:</strong> Essential optimizations only<br>';
-    optimalScenarios += '   • Viewport Culling: ON<br>';
-    optimalScenarios += '   • LOD System: ON<br>';
-    optimalScenarios += '   • Gaze Prediction: OFF<br>';
-    optimalScenarios += '   • Target FPS: 30<br>';
-  } else {
-    optimalScenarios += '⚠️ <strong>Low Quality:</strong> Minimal features for stability<br>';
-    optimalScenarios += '   • Viewport Culling: ON<br>';
-    optimalScenarios += '   • LOD System: ON<br>';
-    optimalScenarios += '   • Gaze Prediction: OFF<br>';
-    optimalScenarios += '   • Target FPS: 15<br>';
-  }
-  
-  // Performance tips based on current issues
-  let performanceTips = '';
-  
-  if (fps < 30) {
-    performanceTips += '🔧 <strong>Low FPS:</strong> Reduce dataset size or enable more culling<br>';
-  }
-  
-  if (memory > 80) {
-    performanceTips += '🧠 <strong>High Memory:</strong> Use memory cleanup or reduce LOD<br>';
-  }
-  
-  if (networkSpeed < 2) {
-    performanceTips += '🌐 <strong>Slow Network:</strong> Enable aggressive culling and LOD<br>';
-  }
-  
-  if (latency > 200) {
-    performanceTips += '⏱️ <strong>High Latency:</strong> Pre-fetch data and use caching<br>';
-  }
-  
-  if (performanceTips === '') {
-    performanceTips = '✅ <strong>All systems optimal!</strong> No immediate improvements needed';
-  }
-  
-  // Add specific recommendations for different scenarios
-  performanceTips += '<br><strong>📋 Scenario-Specific Tips:</strong><br>';
-  
-  if (networkSpeed >= 10) {
-    performanceTips += '🚀 <strong>High-Speed Network:</strong> Enable gaze prediction for best UX<br>';
-  }
-  
-  if (memory < 50) {
-    performanceTips += '💾 <strong>Low Memory Usage:</strong> Can handle larger datasets<br>';
-  }
-  
-  if (latency < 50) {
-    performanceTips += '⚡ <strong>Low Latency:</strong> Real-time collaboration optimal<br>';
-  }
-  
-  return {
-    currentStatus,
-    optimalScenarios,
-    performanceTips
-  };
-}
 
 // ----------------------------------------------------------------------------
 // Viewport Culling (Frustum Culling) System
@@ -773,11 +675,11 @@ function toggleViewportCulling() {
 let lodSystem = {
   enabled: true,
   levels: [
-    { distance: 0, resolution: 1.0, name: 'Ultra' },
-    { distance: 50, resolution: 0.8, name: 'High' },
-    { distance: 100, resolution: 0.6, name: 'Medium' },
-    { distance: 200, resolution: 0.4, name: 'Low' },
-    { distance: 500, resolution: 0.2, name: 'Very Low' }
+    { distance: 0, resolution: 1.0, name: 'Ultra', color: '#4CAF50' },
+    { distance: 50, resolution: 0.6, name: 'High', color: '#8BC34A' },    // More dramatic reduction
+    { distance: 100, resolution: 0.3, name: 'Medium', color: '#FF9800' }, // Much lower quality
+    { distance: 200, resolution: 0.1, name: 'Low', color: '#FF5722' },    // Very low quality
+    { distance: 500, resolution: 0.05, name: 'Very Low', color: '#f44336' } // Extremely low
   ],
   currentLOD: {},
   lodStats: {
@@ -911,6 +813,8 @@ let adaptiveStreaming = {
   currentFPS: 0,
   frameCount: 0,
   lastFPSCheck: Date.now(),
+  smartMode: true, // Enable smart adaptive streaming
+  lastCameraMove: Date.now(),
   streamingStats: {
     totalRequests: 0,
     successfulRequests: 0,
@@ -918,6 +822,13 @@ let adaptiveStreaming = {
     averageLatency: 0,
     bandwidthUtilization: 0
   }
+};
+
+// Configurable weighting system
+let adaptiveWeights = {
+  network: 0.4,
+  fps: 0.3,
+  memory: 0.3
 };
 
 function initializeAdaptiveStreaming() {
@@ -972,19 +883,209 @@ function startAdaptiveQualityAdjustment() {
   }, 1000); // Check every second
 }
 
-function adjustStreamingQuality() {
+// Performance scoring functions for intelligent adaptive streaming
+function getNetworkScore(quality) {
+  switch (quality) {
+    case 'high': return 100;
+    case 'medium': return 70;
+    case 'low': return 40;
+    case 'very-low': return 20;
+    default: return 50;
+  }
+}
+
+function getFPSScore(fpsRatio) {
+  if (fpsRatio >= 0.9) return 100;
+  if (fpsRatio >= 0.7) return 70;
+  if (fpsRatio >= 0.5) return 40;
+  return 20;
+}
+
+function getMemoryScore(memoryUsage) {
+  if (memoryUsage < 0.5) return 100;
+  if (memoryUsage < 0.7) return 70;
+  if (memoryUsage < 0.85) return 40;
+  return 20;
+}
+
+// Configurable weighting system functions
+function setAdaptiveWeights(weights) {
+  // Validate weights sum to 1.0
+  const total = weights.network + weights.fps + weights.memory;
+  if (Math.abs(total - 1.0) > 0.01) {
+    logWarning(`Weights must sum to 1.0, got ${total.toFixed(3)}. Normalizing...`);
+    const normalizedWeights = {
+      network: weights.network / total,
+      fps: weights.fps / total,
+      memory: weights.memory / total
+    };
+    adaptiveWeights = normalizedWeights;
+  } else {
+    adaptiveWeights = weights;
+  }
+  
+  logInfo(`Updated adaptive weights: Network(${adaptiveWeights.network.toFixed(2)}) FPS(${adaptiveWeights.fps.toFixed(2)}) Memory(${adaptiveWeights.memory.toFixed(2)})`);
+  
+  // Update dropdown selection if it exists
+  updateWeightsDropdownSelection();
+}
+
+// Update dropdown selection based on current weights
+function updateWeightsDropdownSelection() {
+  const weightsSelect = document.getElementById('adaptive-weights-selector');
+  if (!weightsSelect) return;
+  
+  // Find matching optimization type based on current weights
+  const currentWeights = adaptiveWeights;
+  let selectedValue = 'balanced'; // Default
+  
+  // Check for exact matches with tolerance
+  const tolerance = 0.01;
+  
+  if (Math.abs(currentWeights.network - 0.6) < tolerance && 
+      Math.abs(currentWeights.fps - 0.2) < tolerance && 
+      Math.abs(currentWeights.memory - 0.2) < tolerance) {
+    selectedValue = 'network';
+  } else if (Math.abs(currentWeights.network - 0.3) < tolerance && 
+             Math.abs(currentWeights.fps - 0.4) < tolerance && 
+             Math.abs(currentWeights.memory - 0.3) < tolerance) {
+    selectedValue = 'performance';
+  } else if (Math.abs(currentWeights.network - 0.4) < tolerance && 
+             Math.abs(currentWeights.fps - 0.3) < tolerance && 
+             Math.abs(currentWeights.memory - 0.3) < tolerance) {
+    selectedValue = 'mobile';
+  }
+  
+  weightsSelect.value = selectedValue;
+}
+
+// Enhanced performance metrics display
+function updatePerformanceMetrics() {
+  const metrics = {
+    quality: adaptiveStreaming.qualityLevel,
+    fps: adaptiveStreaming.currentFPS,
+    network: getNetworkQuality(),
+    memory: getMemoryUsageRatio(),
+    weights: adaptiveWeights,
+    optimizations: {
+      viewportCulling: viewportCuller.enabled,
+      lod: lodSystem.enabled,
+      gazePrediction: typeof gazePredictor !== 'undefined' && gazePredictor.enabled
+    }
+  };
+  
+  // Console logging for debugging
+  console.log('📈 Performance Metrics:', metrics);
+  
+  // Log optimization status
+  const activeOptimizations = [];
+  if (metrics.optimizations.viewportCulling) activeOptimizations.push('ViewportCulling');
+  if (metrics.optimizations.lod) activeOptimizations.push('LOD');
+  if (metrics.optimizations.gazePrediction) activeOptimizations.push('GazePrediction');
+  
+  if (activeOptimizations.length > 0) {
+    logProgress(`🔧 Active optimizations: ${activeOptimizations.join(', ')}`);
+  }
+  
+  return metrics;
+}
+
+// Preset weight configurations for different scenarios
+function setNetworkConstrainedWeights() {
+  setAdaptiveWeights({
+    network: 0.6,    // Higher weight for network
+    fps: 0.2,        // Lower weight for FPS
+    memory: 0.2      // Lower weight for memory
+  });
+}
+
+function setHighPerformanceWeights() {
+  setAdaptiveWeights({
+    network: 0.3,    // Lower weight for network
+    fps: 0.4,        // Higher weight for FPS
+    memory: 0.3      // Equal weight for memory
+  });
+}
+
+function setMobileWeights() {
+  setAdaptiveWeights({
+    network: 0.4,    // Network still important
+    fps: 0.3,        // FPS important for battery
+    memory: 0.3      // Memory critical on mobile
+  });
+}
+
+function setBalancedWeights() {
+  setAdaptiveWeights({
+    network: 0.4,    // Default balanced weights
+    fps: 0.3,
+    memory: 0.3
+  });
+}
+
+// Dynamic weight adjustment based on context
+function adjustWeightsBasedOnContext() {
   const networkQuality = getNetworkQuality();
   const fpsRatio = adaptiveStreaming.currentFPS / adaptiveStreaming.targetFPS;
   const memoryUsage = getMemoryUsageRatio();
   
-  let newQuality = adaptiveStreaming.qualityLevel;
+  // Auto-adjust weights based on current conditions
+  if (networkQuality === 'low' || networkQuality === 'very-low') {
+    // Network is the bottleneck, increase its weight
+    setAdaptiveWeights({
+      network: 0.5,
+      fps: 0.25,
+      memory: 0.25
+    });
+    logInfo('Auto-adjusted weights: Network priority due to poor connection');
+  } else if (fpsRatio < 0.5) {
+    // FPS is the bottleneck, increase its weight
+    setAdaptiveWeights({
+      network: 0.3,
+      fps: 0.5,
+      memory: 0.2
+    });
+    logInfo('Auto-adjusted weights: FPS priority due to poor performance');
+  } else if (memoryUsage > 0.8) {
+    // Memory is the bottleneck, increase its weight
+    setAdaptiveWeights({
+      network: 0.3,
+      fps: 0.2,
+      memory: 0.5
+    });
+    logInfo('Auto-adjusted weights: Memory priority due to high usage');
+  }
+}
+
+function adjustStreamingQuality() {
+  // Use smart adaptive streaming if enabled
+  if (adaptiveStreaming.smartMode) {
+    smartAdaptiveStreaming();
+    return;
+  }
   
-  // Determine quality based on multiple factors
-  if (networkQuality === 'high' && fpsRatio > 0.9 && memoryUsage < 0.7) {
+  // Fallback to traditional scoring-based approach
+  const networkQuality = getNetworkQuality();
+  const fpsRatio = adaptiveStreaming.currentFPS / adaptiveStreaming.targetFPS;
+  const memoryUsage = getMemoryUsageRatio();
+  
+  // Calculate weighted performance score (0-100)
+  const networkScore = getNetworkScore(networkQuality);
+  const fpsScore = getFPSScore(fpsRatio);
+  const memoryScore = getMemoryScore(memoryUsage);
+  
+  // Use configurable weights
+  const overallScore = (networkScore * adaptiveWeights.network) + 
+                      (fpsScore * adaptiveWeights.fps) + 
+                      (memoryScore * adaptiveWeights.memory);
+  
+  // Determine quality level based on overall score
+  let newQuality;
+  if (overallScore >= 80) {
     newQuality = 'high';
-  } else if (networkQuality === 'medium' && fpsRatio > 0.8 && memoryUsage < 0.8) {
+  } else if (overallScore >= 60) {
     newQuality = 'medium';
-  } else if (networkQuality === 'low' || fpsRatio < 0.7 || memoryUsage > 0.9) {
+  } else {
     newQuality = 'low';
   }
   
@@ -992,30 +1093,45 @@ function adjustStreamingQuality() {
     applyStreamingQuality(newQuality);
     adaptiveStreaming.qualityLevel = newQuality;
     
-    logInfo(`Streaming quality adjusted: ${adaptiveStreaming.qualityLevel}`);
+    logInfo(`Streaming quality adjusted: ${adaptiveStreaming.qualityLevel} (Score: ${overallScore.toFixed(1)})`);
+    logProgress(`Performance breakdown: Network(${networkScore}) FPS(${fpsScore}) Memory(${memoryScore})`);
   }
 }
 
 function applyStreamingQuality(quality) {
+  const networkQuality = getNetworkQuality();
+  const fpsRatio = adaptiveStreaming.currentFPS / adaptiveStreaming.targetFPS;
+  const memoryUsage = getMemoryUsageRatio();
+  
+  // Component-specific optimization based on individual metrics
   switch (quality) {
     case 'high':
-      // Enable all features
+      // High performance scenario: Enable all features
       viewportCuller.enabled = true;
       lodSystem.enabled = true;
+      if (typeof gazePredictor !== 'undefined') {
+        gazePredictor.enabled = true;
+      }
       adaptiveStreaming.targetFPS = 60;
       break;
       
     case 'medium':
-      // Enable core features, disable some optimizations
+      // Balanced scenario: Selective optimization
       viewportCuller.enabled = true;
       lodSystem.enabled = true;
+      if (typeof gazePredictor !== 'undefined') {
+        gazePredictor.enabled = (networkQuality === 'high' && fpsRatio > 0.8);
+      }
       adaptiveStreaming.targetFPS = 45;
       break;
       
     case 'low':
-      // Enable only essential features
-      viewportCuller.enabled = true;
-      lodSystem.enabled = true;
+      // Constrained scenario: Focus on essential optimizations
+      viewportCuller.enabled = true;  // Always enable for bandwidth reduction
+      lodSystem.enabled = (memoryUsage > 0.7 || fpsRatio < 0.7);
+      if (typeof gazePredictor !== 'undefined') {
+        gazePredictor.enabled = false;  // Disable ML to save resources
+      }
       adaptiveStreaming.targetFPS = 30;
       break;
   }
@@ -1029,7 +1145,108 @@ function applyStreamingQuality(quality) {
     updateLODForAllObjects();
   }
   
+  // Show visual quality change notification
+  showQualityChange(quality);
+  
+  // Log optimization status
+  const optimizations = [];
+  if (viewportCuller.enabled) optimizations.push('ViewportCulling');
+  if (lodSystem.enabled) optimizations.push('LOD');
+  if (typeof gazePredictor !== 'undefined' && gazePredictor.enabled) optimizations.push('GazePrediction');
+  
+  // Enhanced logging with performance impact
+  const impact = {
+    'high': 'All optimizations enabled',
+    'medium': 'Core optimizations enabled', 
+    'low': 'Essential optimizations only'
+  };
+  
+  logInfo(`🔄 Quality changed: ${adaptiveStreaming.qualityLevel} → ${quality.toUpperCase()}`);
+  logInfo(`📊 Impact: ${impact[quality]}`);
+  logProgress(`Active optimizations: ${optimizations.join(', ')} | Target FPS: ${adaptiveStreaming.targetFPS}`);
+  
   renderWindow.render();
+}
+
+// Smart adaptive streaming with context-aware optimization
+function smartAdaptiveStreaming() {
+  // Auto-adjust weights based on context
+  adjustWeightsBasedOnContext();
+  
+  const metrics = {
+    network: getNetworkQuality(),
+    fps: adaptiveStreaming.currentFPS,
+    memory: getMemoryUsageRatio(),
+    userActivity: getUserActivityLevel()
+  };
+  
+  logProgress(`Smart adaptive analysis: Network(${metrics.network}) FPS(${metrics.fps.toFixed(1)}) Memory(${(metrics.memory * 100).toFixed(1)}%)`);
+  
+  // Different strategies for different scenarios
+  if (metrics.network === 'high' && metrics.fps > 50) {
+    // High performance scenario: Enable all features
+    enableAllOptimizations();
+  } else if (metrics.network === 'low' && metrics.memory > 0.8) {
+    // Constrained scenario: Focus on bandwidth reduction
+    enableBandwidthOptimization();
+  } else if (metrics.fps < 30) {
+    // Performance critical: Focus on rendering optimization
+    enablePerformanceOptimization();
+  } else {
+    // Balanced scenario: Selective optimization
+    enableBalancedOptimization();
+  }
+}
+
+function enableAllOptimizations() {
+  viewportCuller.enabled = true;
+  lodSystem.enabled = true;
+  if (typeof gazePredictor !== 'undefined') {
+    gazePredictor.enabled = true;
+  }
+  adaptiveStreaming.targetFPS = 60;
+  logInfo('High performance mode: All optimizations enabled');
+}
+
+function enableBandwidthOptimization() {
+  viewportCuller.enabled = true;    // Reduce data transmission
+  lodSystem.enabled = true;         // Reduce quality for distant objects
+  if (typeof gazePredictor !== 'undefined') {
+    gazePredictor.enabled = false;  // Disable ML to save resources
+  }
+  adaptiveStreaming.targetFPS = 30; // Lower FPS target
+  logInfo('Bandwidth optimization mode: Focus on data reduction');
+}
+
+function enablePerformanceOptimization() {
+  viewportCuller.enabled = true;    // Reduce rendering load
+  lodSystem.enabled = true;        // Reduce geometry complexity
+  if (typeof gazePredictor !== 'undefined') {
+    gazePredictor.enabled = false; // Disable ML processing
+  }
+  adaptiveStreaming.targetFPS = 30; // Lower FPS target
+  logInfo('Performance optimization mode: Focus on rendering efficiency');
+}
+
+function enableBalancedOptimization() {
+  viewportCuller.enabled = true;   // Moderate culling
+  lodSystem.enabled = true;        // Moderate LOD
+  if (typeof gazePredictor !== 'undefined') {
+    gazePredictor.enabled = true;   // Enable ML for better UX
+  }
+  adaptiveStreaming.targetFPS = 45; // Balanced FPS target
+  logInfo('Balanced optimization mode: Selective feature activation');
+}
+
+function getUserActivityLevel() {
+  // Simple user activity detection based on camera movement
+  // This could be enhanced with more sophisticated activity detection
+  const cameraPos = camera.getPosition();
+  const timeSinceLastMove = Date.now() - (adaptiveStreaming.lastCameraMove || Date.now());
+  
+  if (timeSinceLastMove < 1000) return 'active';
+  if (timeSinceLastMove < 5000) return 'moderate';
+  return 'idle';
 }
 
 function increaseStreamingQuality() {
@@ -1066,6 +1283,20 @@ function toggleAdaptiveStreaming() {
   if (adaptiveStreaming.enabled) {
     adjustStreamingQuality();
   }
+}
+
+function toggleSmartMode() {
+  adaptiveStreaming.smartMode = !adaptiveStreaming.smartMode;
+  logInfo(`Smart adaptive streaming ${adaptiveStreaming.smartMode ? 'enabled' : 'disabled'}`);
+  
+  if (adaptiveStreaming.enabled) {
+    adjustStreamingQuality();
+  }
+}
+
+// Track camera movement for user activity detection
+function trackCameraMovement() {
+  adaptiveStreaming.lastCameraMove = Date.now();
 }
 
 // ----------------------------------------------------------------------------
@@ -3050,6 +3281,55 @@ function setupDimensionalityReductionControls() {
   statsRow.appendChild(statsCell);
   controlTable.appendChild(statsRow);
 
+  // Adaptive Weights Controls Row
+  const weightsRow = document.createElement('tr');
+  const weightsCell = document.createElement('td');
+  
+  // Weight Configuration Dropdown
+  const weightsSelect = document.createElement('select');
+  weightsSelect.id = 'adaptive-weights-selector';
+  weightsSelect.style.cssText = 'width: 100%; padding: 5px; font-size: 11px; border-radius: 3px; border: 1px solid #ccc;';
+  
+  // Add optimization type options
+  const weightOptions = [
+    { value: 'balanced', text: 'Balanced', weights: { network: 0.4, fps: 0.3, memory: 0.3 } },
+    { value: 'network', text: 'Network Focus', weights: { network: 0.6, fps: 0.2, memory: 0.2 } },
+    { value: 'performance', text: 'Performance Focus', weights: { network: 0.3, fps: 0.4, memory: 0.3 } },
+    { value: 'mobile', text: 'Mobile Optimized', weights: { network: 0.4, fps: 0.3, memory: 0.3 } }
+  ];
+  
+  weightOptions.forEach(option => {
+    const optionElement = document.createElement('option');
+    optionElement.value = option.value;
+    optionElement.textContent = option.text;
+    if (option.value === 'balanced') optionElement.selected = true; // Default selection
+    weightsSelect.appendChild(optionElement);
+  });
+  
+  // Add event listener for weight changes
+  weightsSelect.addEventListener('change', (e) => {
+    const selectedOption = weightOptions.find(opt => opt.value === e.target.value);
+    if (selectedOption) {
+      setAdaptiveWeights(selectedOption.weights);
+      logInfo(`Optimization type changed to: ${selectedOption.text}`);
+    }
+  });
+  
+  weightsCell.appendChild(weightsSelect);
+  weightsRow.appendChild(weightsCell);
+  controlTable.appendChild(weightsRow);
+
+  // Current Weights Display Row
+  const weightsDisplayRow = document.createElement('tr');
+  const weightsDisplayCell = document.createElement('td');
+  const weightsDisplay = document.createElement('div');
+  weightsDisplay.id = 'adaptive-weights-display';
+  weightsDisplay.style.cssText = 'font-size: 11px; text-align: center; padding: 5px; background: #e8f5e8; border-radius: 3px; border: 1px solid #4CAF50; font-weight: bold;';
+  weightsDisplay.innerHTML = '🎯 <strong>Current Weights:</strong><br>Network: 40% | FPS: 30% | Memory: 30%';
+  weightsDisplayCell.appendChild(weightsDisplay);
+  weightsDisplayRow.appendChild(weightsDisplayCell);
+  controlTable.appendChild(weightsDisplayRow);
+
   // Update network quality display
   setInterval(() => {
     const networkDisplay = document.getElementById('network-quality-display');
@@ -3083,21 +3363,24 @@ function setupDimensionalityReductionControls() {
     }
   }, 1000);
 
-  // Add Adaptive Streaming Recommendations Panel
-  const recommendationsRow = document.createElement('tr');
-  const recommendationsCell = document.createElement('td');
-  const recommendationsDisplay = document.createElement('div');
-  recommendationsDisplay.id = 'adaptive-streaming-recommendations';
-  recommendationsDisplay.style.cssText = 'font-size: 10px; text-align: left; padding: 8px; background: #f0f8ff; border-radius: 5px; line-height: 1.4; border: 1px solid #4CAF50;';
-  recommendationsDisplay.innerHTML = 'Adaptive Streaming Recommendations:<br>Loading...';
-  recommendationsCell.appendChild(recommendationsDisplay);
-  recommendationsRow.appendChild(recommendationsCell);
-  controlTable.appendChild(recommendationsRow);
-
-  // Update recommendations every 3 seconds
+  // Update weights display
   setInterval(() => {
-    updateAdaptiveStreamingRecommendations();
-  }, 3000);
+    const weightsDisplay = document.getElementById('adaptive-weights-display');
+    if (weightsDisplay) {
+      const networkPercent = (adaptiveWeights.network * 100).toFixed(0);
+      const fpsPercent = (adaptiveWeights.fps * 100).toFixed(0);
+      const memoryPercent = (adaptiveWeights.memory * 100).toFixed(0);
+      
+      weightsDisplay.innerHTML = `🎯 <strong>Current Weights:</strong><br>Network: ${networkPercent}% | FPS: ${fpsPercent}% | Memory: ${memoryPercent}%`;
+    }
+  }, 2000);
+
+  // Update performance metrics every 5 seconds
+  setInterval(() => {
+    updatePerformanceMetrics();
+  }, 5000);
+
+  
   
   logSuccess('Dimensionality Reduction controls initialized:');
   logProgress('  - PCA: TensorFlow.js with tf.tidy() memory management');
