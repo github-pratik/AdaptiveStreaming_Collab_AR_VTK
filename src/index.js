@@ -302,7 +302,14 @@ let networkMonitor = {
   bandwidth: 0,
   connectionType: 'unknown',
   isOnline: true,
-  lastUpdate: Date.now()
+  lastUpdate: Date.now(),
+  actualSpeed: 0, // Actual measured speed in Mbps
+  latency: 0, // Network latency in ms
+  rtt: 0, // Round trip time
+  packetLoss: 0, // Packet loss percentage
+  jitter: 0, // Network jitter
+  speedHistory: [], // History of speed measurements
+  maxHistoryLength: 10
 };
 
 function initializeNetworkMonitoring() {
@@ -347,7 +354,120 @@ function updateNetworkStatus() {
 }
 
 function startBandwidthEstimation() {
-  // Simple bandwidth estimation using image download
+  // Enhanced bandwidth estimation with multiple test sizes
+  performComprehensiveSpeedTest();
+}
+
+async function performComprehensiveSpeedTest() {
+  logProgress('Performing comprehensive network speed test...');
+  
+  const testSizes = [10, 50, 100, 200]; // KB
+  const results = [];
+  
+  for (const sizeKB of testSizes) {
+    try {
+      const speed = await measureDownloadSpeed(sizeKB);
+      results.push(speed);
+      logProgress(`Test ${sizeKB}KB: ${speed.toFixed(2)} Mbps`);
+    } catch (error) {
+      logWarning(`Speed test failed for ${sizeKB}KB: ${error.message}`);
+    }
+  }
+  
+  if (results.length > 0) {
+    // Use median speed for more accurate measurement
+    results.sort((a, b) => a - b);
+    const medianSpeed = results[Math.floor(results.length / 2)];
+    const averageSpeed = results.reduce((sum, speed) => sum + speed, 0) / results.length;
+    
+    networkMonitor.actualSpeed = medianSpeed;
+    networkMonitor.bandwidth = averageSpeed;
+    networkMonitor.lastUpdate = Date.now();
+    
+    // Add to history
+    networkMonitor.speedHistory.push({
+      speed: medianSpeed,
+      timestamp: Date.now()
+    });
+    
+    // Keep only recent measurements
+    if (networkMonitor.speedHistory.length > networkMonitor.maxHistoryLength) {
+      networkMonitor.speedHistory.shift();
+    }
+    
+    // Measure latency
+    await measureNetworkLatency();
+    
+    logSuccess(`Network speed test completed: ${medianSpeed.toFixed(2)} Mbps (avg: ${averageSpeed.toFixed(2)} Mbps)`);
+    logProgress(`Latency: ${networkMonitor.latency.toFixed(1)}ms, RTT: ${networkMonitor.rtt.toFixed(1)}ms`);
+    
+    adjustStreamingQuality();
+  } else {
+    logWarning('All speed tests failed, using fallback estimation');
+    performFallbackSpeedTest();
+  }
+}
+
+function measureDownloadSpeed(sizeKB) {
+  return new Promise((resolve, reject) => {
+    const testImage = new Image();
+    const startTime = performance.now();
+    
+    testImage.onload = () => {
+      const endTime = performance.now();
+      const duration = (endTime - startTime) / 1000; // seconds
+      const bandwidth = (sizeKB * 8) / duration; // kbps
+      const speedMbps = bandwidth / 1000; // Convert to Mbps
+      resolve(speedMbps);
+    };
+    
+    testImage.onerror = () => {
+      reject(new Error('Image load failed'));
+    };
+    
+    // Create a larger test image for more accurate measurement
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.sqrt(sizeKB * 1024 / 3) * 2; // Approximate size
+    canvas.height = Math.sqrt(sizeKB * 1024 / 3) * 2;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    testImage.src = canvas.toDataURL('image/jpeg', 0.8);
+  });
+}
+
+async function measureNetworkLatency() {
+  try {
+    const startTime = performance.now();
+    
+    // Simple ping to measure latency
+    const response = await fetch(window.location.href, {
+      method: 'HEAD',
+      cache: 'no-cache'
+    });
+    
+    const endTime = performance.now();
+    networkMonitor.latency = endTime - startTime;
+    networkMonitor.rtt = networkMonitor.latency * 2; // Approximate RTT
+    
+    // Estimate jitter (simplified)
+    if (networkMonitor.speedHistory.length > 1) {
+      const speeds = networkMonitor.speedHistory.map(h => h.speed);
+      const avgSpeed = speeds.reduce((sum, speed) => sum + speed, 0) / speeds.length;
+      const variance = speeds.reduce((sum, speed) => sum + Math.pow(speed - avgSpeed, 2), 0) / speeds.length;
+      networkMonitor.jitter = Math.sqrt(variance);
+    }
+    
+  } catch (error) {
+    logWarning(`Latency measurement failed: ${error.message}`);
+    networkMonitor.latency = 100; // Default fallback
+    networkMonitor.rtt = 200;
+  }
+}
+
+function performFallbackSpeedTest() {
+  // Fallback to original method
   const testImage = new Image();
   const startTime = performance.now();
   
@@ -357,10 +477,11 @@ function startBandwidthEstimation() {
     const sizeKB = 50; // Approximate test image size
     const bandwidth = (sizeKB * 8) / duration; // kbps
     
-    networkMonitor.bandwidth = bandwidth / 1000; // Convert to Mbps
+    networkMonitor.actualSpeed = bandwidth / 1000; // Convert to Mbps
+    networkMonitor.bandwidth = networkMonitor.actualSpeed;
     networkMonitor.lastUpdate = Date.now();
     
-    logProgress(`Estimated bandwidth: ${networkMonitor.bandwidth.toFixed(2)} Mbps`);
+    logProgress(`Fallback bandwidth estimation: ${networkMonitor.actualSpeed.toFixed(2)} Mbps`);
     adjustStreamingQuality();
   };
   
@@ -369,10 +490,159 @@ function startBandwidthEstimation() {
 
 function getNetworkQuality() {
   if (!networkMonitor.isOnline) return 'offline';
-  if (networkMonitor.bandwidth > 10) return 'high';
-  if (networkMonitor.bandwidth > 5) return 'medium';
-  if (networkMonitor.bandwidth > 1) return 'low';
+  if (networkMonitor.actualSpeed > 10) return 'high';
+  if (networkMonitor.actualSpeed > 5) return 'medium';
+  if (networkMonitor.actualSpeed > 1) return 'low';
   return 'very-low';
+}
+
+// ----------------------------------------------------------------------------
+// Adaptive Streaming Recommendations System
+// ----------------------------------------------------------------------------
+
+function updateAdaptiveStreamingRecommendations() {
+  const recommendationsDisplay = document.getElementById('adaptive-streaming-recommendations');
+  if (!recommendationsDisplay) return;
+
+  const currentMetrics = analyzeCurrentMetrics();
+  const recommendations = generateRecommendations(currentMetrics);
+  
+  recommendationsDisplay.innerHTML = `
+    <strong>🎯 Adaptive Streaming Recommendations:</strong><br>
+    ${recommendations.currentStatus}<br>
+    <strong>📊 Optimal Scenarios:</strong><br>
+    ${recommendations.optimalScenarios}<br>
+    <strong>⚡ Performance Tips:</strong><br>
+    ${recommendations.performanceTips}
+  `;
+}
+
+function analyzeCurrentMetrics() {
+  const fps = adaptiveStreaming.currentFPS;
+  const memory = getMemoryUsageRatio() * 100;
+  const networkSpeed = networkMonitor.actualSpeed;
+  const latency = networkMonitor.latency;
+  const networkQuality = getNetworkQuality();
+  
+  // Calculate performance score (0-100)
+  let performanceScore = 0;
+  
+  // FPS contribution (40% weight)
+  if (fps >= 60) performanceScore += 40;
+  else if (fps >= 45) performanceScore += 30;
+  else if (fps >= 30) performanceScore += 20;
+  else if (fps >= 15) performanceScore += 10;
+  
+  // Memory contribution (30% weight)
+  if (memory < 50) performanceScore += 30;
+  else if (memory < 70) performanceScore += 20;
+  else if (memory < 85) performanceScore += 10;
+  
+  // Network contribution (30% weight)
+  if (networkSpeed >= 10) performanceScore += 30;
+  else if (networkSpeed >= 5) performanceScore += 20;
+  else if (networkSpeed >= 2) performanceScore += 10;
+  
+  return {
+    fps,
+    memory,
+    networkSpeed,
+    latency,
+    networkQuality,
+    performanceScore,
+    viewportCullingEnabled: viewportCuller.enabled,
+    lodEnabled: lodSystem.enabled,
+    adaptiveStreamingEnabled: adaptiveStreaming.enabled
+  };
+}
+
+function generateRecommendations(metrics) {
+  const { fps, memory, networkSpeed, latency, networkQuality, performanceScore } = metrics;
+  
+  // Current status
+  let currentStatus = '';
+  if (performanceScore >= 80) {
+    currentStatus = '🟢 <strong>Excellent Performance</strong> - All systems optimal';
+  } else if (performanceScore >= 60) {
+    currentStatus = '🟡 <strong>Good Performance</strong> - Minor optimizations available';
+  } else if (performanceScore >= 40) {
+    currentStatus = '🟠 <strong>Fair Performance</strong> - Several optimizations needed';
+  } else {
+    currentStatus = '🔴 <strong>Poor Performance</strong> - Major optimizations required';
+  }
+  
+  // Optimal scenarios based on current metrics
+  let optimalScenarios = '';
+  
+  if (networkSpeed >= 10 && latency < 50) {
+    optimalScenarios += '✅ <strong>Ultra High Quality:</strong> Enable all features<br>';
+    optimalScenarios += '   • Viewport Culling: ON<br>';
+    optimalScenarios += '   • LOD System: ON<br>';
+    optimalScenarios += '   • Gaze Prediction: ON<br>';
+    optimalScenarios += '   • Target FPS: 60<br>';
+  } else if (networkSpeed >= 5 && latency < 100) {
+    optimalScenarios += '✅ <strong>High Quality:</strong> Enable core optimizations<br>';
+    optimalScenarios += '   • Viewport Culling: ON<br>';
+    optimalScenarios += '   • LOD System: ON<br>';
+    optimalScenarios += '   • Gaze Prediction: OFF<br>';
+    optimalScenarios += '   • Target FPS: 45<br>';
+  } else if (networkSpeed >= 2 && latency < 200) {
+    optimalScenarios += '✅ <strong>Medium Quality:</strong> Essential optimizations only<br>';
+    optimalScenarios += '   • Viewport Culling: ON<br>';
+    optimalScenarios += '   • LOD System: ON<br>';
+    optimalScenarios += '   • Gaze Prediction: OFF<br>';
+    optimalScenarios += '   • Target FPS: 30<br>';
+  } else {
+    optimalScenarios += '⚠️ <strong>Low Quality:</strong> Minimal features for stability<br>';
+    optimalScenarios += '   • Viewport Culling: ON<br>';
+    optimalScenarios += '   • LOD System: ON<br>';
+    optimalScenarios += '   • Gaze Prediction: OFF<br>';
+    optimalScenarios += '   • Target FPS: 15<br>';
+  }
+  
+  // Performance tips based on current issues
+  let performanceTips = '';
+  
+  if (fps < 30) {
+    performanceTips += '🔧 <strong>Low FPS:</strong> Reduce dataset size or enable more culling<br>';
+  }
+  
+  if (memory > 80) {
+    performanceTips += '🧠 <strong>High Memory:</strong> Use memory cleanup or reduce LOD<br>';
+  }
+  
+  if (networkSpeed < 2) {
+    performanceTips += '🌐 <strong>Slow Network:</strong> Enable aggressive culling and LOD<br>';
+  }
+  
+  if (latency > 200) {
+    performanceTips += '⏱️ <strong>High Latency:</strong> Pre-fetch data and use caching<br>';
+  }
+  
+  if (performanceTips === '') {
+    performanceTips = '✅ <strong>All systems optimal!</strong> No immediate improvements needed';
+  }
+  
+  // Add specific recommendations for different scenarios
+  performanceTips += '<br><strong>📋 Scenario-Specific Tips:</strong><br>';
+  
+  if (networkSpeed >= 10) {
+    performanceTips += '🚀 <strong>High-Speed Network:</strong> Enable gaze prediction for best UX<br>';
+  }
+  
+  if (memory < 50) {
+    performanceTips += '💾 <strong>Low Memory Usage:</strong> Can handle larger datasets<br>';
+  }
+  
+  if (latency < 50) {
+    performanceTips += '⚡ <strong>Low Latency:</strong> Real-time collaboration optimal<br>';
+  }
+  
+  return {
+    currentStatus,
+    optimalScenarios,
+    performanceTips
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -2785,8 +3055,9 @@ function setupDimensionalityReductionControls() {
     const networkDisplay = document.getElementById('network-quality-display');
     if (networkDisplay) {
       const quality = getNetworkQuality();
-      const bandwidth = networkMonitor.bandwidth.toFixed(1);
-      networkDisplay.textContent = `Network: ${quality.toUpperCase()} (${bandwidth} Mbps)`;
+      const actualSpeed = networkMonitor.actualSpeed.toFixed(1);
+      const latency = networkMonitor.latency.toFixed(0);
+      networkDisplay.textContent = `Network: ${quality.toUpperCase()} (${actualSpeed} Mbps, ${latency}ms)`;
       networkDisplay.style.backgroundColor = quality === 'high' ? '#e8f5e8' : quality === 'medium' ? '#fff3cd' : '#f8d7da';
     }
   }, 2000);
@@ -2798,15 +3069,35 @@ function setupDimensionalityReductionControls() {
       const fps = adaptiveStreaming.currentFPS.toFixed(1);
       const memory = getMemoryUsageRatio() * 100;
       const network = getNetworkQuality();
+      const actualSpeed = networkMonitor.actualSpeed.toFixed(1);
+      const latency = networkMonitor.latency.toFixed(0);
       
       statsDisplay.innerHTML = `
         Performance Stats:<br>
         FPS: ${fps}<br>
         Memory: ${memory.toFixed(1)}%<br>
-        Network: ${network.toUpperCase()}
+        Network: ${network.toUpperCase()}<br>
+        Speed: ${actualSpeed} Mbps<br>
+        Latency: ${latency}ms
       `;
     }
   }, 1000);
+
+  // Add Adaptive Streaming Recommendations Panel
+  const recommendationsRow = document.createElement('tr');
+  const recommendationsCell = document.createElement('td');
+  const recommendationsDisplay = document.createElement('div');
+  recommendationsDisplay.id = 'adaptive-streaming-recommendations';
+  recommendationsDisplay.style.cssText = 'font-size: 10px; text-align: left; padding: 8px; background: #f0f8ff; border-radius: 5px; line-height: 1.4; border: 1px solid #4CAF50;';
+  recommendationsDisplay.innerHTML = 'Adaptive Streaming Recommendations:<br>Loading...';
+  recommendationsCell.appendChild(recommendationsDisplay);
+  recommendationsRow.appendChild(recommendationsCell);
+  controlTable.appendChild(recommendationsRow);
+
+  // Update recommendations every 3 seconds
+  setInterval(() => {
+    updateAdaptiveStreamingRecommendations();
+  }, 3000);
   
   logSuccess('Dimensionality Reduction controls initialized:');
   logProgress('  - PCA: TensorFlow.js with tf.tidy() memory management');
