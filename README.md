@@ -32,11 +32,18 @@ A cutting-edge web-based platform featuring **intelligent adaptive streaming cap
 - **Predictive Pre-fetching**: Anticipatory data loading for reduced latency
 - **Memory-Optimized Processing**: Enhanced TensorFlow.js integration with automatic cleanup
 
-### 🎛️ **Configurable Weighting System**
-- **Dynamic Weight Adjustment**: Network(40%), FPS(30%), Memory(30%) with real-time adaptation
+### 🎛️ **Advanced Weighted Scoring System**
+- **Smart Weighted Average**: Network(40%), FPS(30%), Memory(30%) with intelligent scoring
+- **Context-Aware Optimization**: Automatic weight adjustment based on system bottlenecks
 - **Optimization Presets**: Balanced, Network Focus, Performance Focus, Mobile Optimized
-- **Smart Context Detection**: Automatic weight adjustment based on system bottlenecks
 - **Real-time Weight Display**: Live monitoring of current optimization weights
+- **Smart Mode**: Context-aware optimization strategies for different scenarios
+
+### 🎯 **Visual Quality Feedback**
+- **Floating Quality Notifications**: Color-coded popup notifications when quality changes
+- **Real-time Quality Indicators**: Green (High), Orange (Medium), Red (Low) quality levels
+- **Enhanced LOD System**: More dramatic quality differences for better visibility
+- **Performance Metrics Display**: Comprehensive debugging and monitoring tools
 
 ---
 
@@ -44,14 +51,22 @@ A cutting-edge web-based platform featuring **intelligent adaptive streaming cap
 
 ### **Adaptive Streaming Controller**
 ```javascript
-// Centralized quality management with multi-factor optimization
+// Centralized quality management with weighted scoring system
 let adaptiveStreaming = {
   enabled: true,
   smartMode: true,           // Context-aware optimization
   qualityLevel: 'auto',      // Dynamic quality adjustment
   targetFPS: 60,            // Performance targets
   currentFPS: 0,            // Real-time monitoring
+  lastCameraMove: null,      // User activity tracking
   streamingStats: { ... }   // Performance metrics
+};
+
+// Configurable weighting system
+let adaptiveWeights = {
+  network: 0.4,    // 40% network priority
+  fps: 0.3,        // 30% FPS priority
+  memory: 0.3      // 30% memory priority
 };
 ```
 

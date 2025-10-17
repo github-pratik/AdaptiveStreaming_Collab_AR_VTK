@@ -339,6 +339,20 @@ function initializeNetworkMonitoring() {
     networkMonitor.isOnline = false;
     logWarning('Network connection lost');
   });
+
+  // Always kick off active measurements to avoid 0 Mbps from some browsers
+  startBandwidthEstimation();
+  // Refresh bandwidth/latency periodically
+  setInterval(() => {
+    if (networkMonitor.isOnline) {
+      performComprehensiveSpeedTest();
+    }
+  }, 30000);
+  setInterval(() => {
+    if (networkMonitor.isOnline) {
+      measureNetworkLatency();
+    }
+  }, 10000);
 }
 
 function updateNetworkStatus() {
@@ -351,6 +365,12 @@ function updateNetworkStatus() {
   
   // Trigger adaptive streaming adjustment
   adjustStreamingQuality();
+
+  // If downlink is 0/undefined, run active estimation
+  if (!networkMonitor.bandwidth || networkMonitor.bandwidth === 0) {
+    logWarning('Network Information API reported 0 Mbps; running active speed test');
+    startBandwidthEstimation();
+  }
 }
 
 function startBandwidthEstimation() {
@@ -856,8 +876,15 @@ function startFPSMonitoring() {
       const fps = 1000 / (deltaTime / adaptiveStreaming.frameCount);
       adaptiveStreaming.currentFPS = fps;
       
-      logProgress(`Current FPS: ${fps.toFixed(1)} (target: ${adaptiveStreaming.targetFPS})`);
-      
+      // Throttle FPS log to every 5s
+if (!adaptiveStreaming._lastFPSLog) adaptiveStreaming._lastFPSLog = 0;
+const now = performance.now();
+if (now - adaptiveStreaming._lastFPSLog >= 50000) {
+  logProgress(`Current FPS: ${fps.toFixed(1)} (target: ${adaptiveStreaming.targetFPS})`);
+  adaptiveStreaming._lastFPSLog = now;
+}
+
+
       // Adjust quality based on FPS
       if (fps < adaptiveStreaming.targetFPS * 0.8) {
         decreaseStreamingQuality();
@@ -880,7 +907,7 @@ function startAdaptiveQualityAdjustment() {
     if (!adaptiveStreaming.enabled) return;
     
     adjustStreamingQuality();
-  }, 1000); // Check every second
+  }, 10000); // Check every second
 }
 
 // Performance scoring functions for intelligent adaptive streaming
@@ -983,8 +1010,13 @@ function updatePerformanceMetrics() {
   if (metrics.optimizations.lod) activeOptimizations.push('LOD');
   if (metrics.optimizations.gazePrediction) activeOptimizations.push('GazePrediction');
   
-  if (activeOptimizations.length > 0) {
-    logProgress(`🔧 Active optimizations: ${activeOptimizations.join(', ')}`);
+  // Only log when the set of active optimizations changes
+  const list = activeOptimizations.join(', ');
+  if (list !== adaptiveStreaming._lastActiveOptimizations) {
+    if (activeOptimizations.length > 0) {
+      logProgress(`🔧 Active optimizations: ${list}`);
+    }
+    adaptiveStreaming._lastActiveOptimizations = list;
   }
   
   return metrics;
@@ -1137,7 +1169,7 @@ function applyStreamingQuality(quality) {
   }
   
   // Apply quality settings
-  if (viewportCuller.enabled) {
+  if (viewportCuller.enabled) { 
     performViewportCulling();
   }
   
@@ -1236,6 +1268,188 @@ function enableBalancedOptimization() {
   }
   adaptiveStreaming.targetFPS = 45; // Balanced FPS target
   logInfo('Balanced optimization mode: Selective feature activation');
+}
+
+// ----------------------------------------------------------------------------
+// Gaze Prediction (TF.js camera motion-based)
+// ----------------------------------------------------------------------------
+let gazePredictor = {
+  enabled: false,
+  model: null,
+  history: [],
+  maxHistoryLength: 30,
+  preFetchRadius: 200.0,
+  lastPredict: 0,
+  predictIntervalMs: 250,
+  prefetchQueue: new Set(),
+  stats: {
+    totalPredictions: 0,
+    successfulPrefetches: 0,
+    averageConfidence: 0
+  }
+};
+
+async function createGazeModel() {
+  const model = tf.sequential();
+  model.add(tf.layers.lstm({ units: 32, inputShape: [gazePredictor.maxHistoryLength, 3] }));
+  model.add(tf.layers.dropout({ rate: 0.1 }));
+  model.add(tf.layers.dense({ units: 3, activation: 'tanh' }));
+  model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+  return model;
+}
+
+async function initializeGazePrediction() {
+  try {
+    const tfReady = await initializeTensorFlow();
+    if (!tfReady) {
+      logWarning('TensorFlow.js unavailable; disabling gaze predictor');
+      gazePredictor.enabled = false;
+      return false;
+    }
+    gazePredictor.model = await createGazeModel();
+    gazePredictor.enabled = true;
+    logSuccess('Gaze predictor initialized');
+    return true;
+  } catch (error) {
+    logError(`Gaze predictor init failed: ${error.message}`);
+    gazePredictor.enabled = false;
+    return false;
+  }
+}
+
+function addCameraSample() {
+  if (!gazePredictor.enabled) return;
+
+  const dir = camera.getDirectionOfProjection();
+  const m = Math.sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]) || 1;
+  const nd = [dir[0]/m, dir[1]/m, dir[2]/m];
+
+  const pos = camera.getPosition();
+  gazePredictor.history.push({ dir: nd, pos: [pos[0], pos[1], pos[2]] });
+
+  if (gazePredictor.history.length > gazePredictor.maxHistoryLength) {
+    gazePredictor.history.shift();
+  }
+}
+
+function getCameraVelocity() {
+  const h = gazePredictor.history;
+  if (h.length < 2) return 0;
+
+  const a = h[h.length - 2];
+  const b = h[h.length - 1];
+
+  // Angular component via direction change
+  const dot = Math.max(-1, Math.min(1, a.dir[0]*b.dir[0] + a.dir[1]*b.dir[1] + a.dir[2]*b.dir[2]));
+  const angle = Math.acos(dot); // radians
+  const angularScaled = angle / Math.PI; // 0..1
+
+  // Positional component via world translation
+  const dx = b.pos[0] - a.pos[0];
+  const dy = b.pos[1] - a.pos[1];
+  const dz = b.pos[2] - a.pos[2];
+  const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+  // Heuristic scaling by scene size
+  const base = gazePredictor.preFetchRadius || 200;
+  const posScaled = Math.min(1, dist / base);
+
+  // Blend
+  return 0.6 * angularScaled + 0.4 * posScaled; // ~0..1
+}
+
+async function maybePredictNextFocal() {
+  if (!gazePredictor.enabled || !gazePredictor.model) return;
+  const now = performance.now();
+  if (now - gazePredictor.lastPredict < gazePredictor.predictIntervalMs) return;
+  if (gazePredictor.history.length < gazePredictor.maxHistoryLength) return;
+
+  gazePredictor.lastPredict = now;
+  gazePredictor.stats.totalPredictions++;
+  try {
+    // Build numeric sequence [T, 3] from history objects
+    const seq = gazePredictor.history.map(h => h.dir);
+    // Pad if needed (safety) then trim to window
+    while (seq.length < gazePredictor.maxHistoryLength) {
+      seq.unshift(seq[0] ?? [0, 0, 1]);
+    }
+    const trimmed = seq.slice(-gazePredictor.maxHistoryLength);
+
+    // Predict next direction
+    const prediction = await tf.tidy(() => {
+      const input = tf.tensor3d([trimmed]); // [1, T, 3]
+      const out = gazePredictor.model.predict(input);
+      return out.arraySync();
+    });
+
+    const d = prediction[0];
+    const velocity = getCameraVelocity();
+    const confidence = Math.max(0, 1 - velocity);
+    gazePredictor.stats.averageConfidence = (gazePredictor.stats.averageConfidence * 0.9) + (confidence * 0.1);
+
+    // Lower threshold so we actually prefetch during motion
+    if (confidence > 0.3) {
+      const camPos = camera.getPosition();
+      const r = gazePredictor.preFetchRadius;
+      const focal = [camPos[0] + d[0] * r, camPos[1] + d[1] * r, camPos[2] + d[2] * r];
+      preFetchHighResolutionData(focal, confidence);
+      if (gazePredictor.stats.totalPredictions % 20 === 0) {
+        logProgress(`Gaze prediction: [${d.map((v) => v.toFixed(3)).join(', ')}], conf: ${(confidence * 100).toFixed(1)}%`);
+      }
+    }
+  } catch (e) {
+    logWarning(`Gaze prediction failed: ${e.message}`);
+  }
+}
+
+function preFetchHighResolutionData(worldPoint, confidence) {
+  if (!lodSystem.enabled) return;
+
+  const actors = renderer.getActors();
+  if (!actors || actors.length === 0) return;
+
+  // Snap focal to nearest actor center so we always target something
+  let nearest = null;
+  let bestD2 = Infinity;
+  for (const actor of actors) {
+    const b = actor.getBounds();
+    const c = [(b[0]+b[1])/2, (b[2]+b[3])/2, (b[4]+b[5])/2];
+    const dx = c[0]-worldPoint[0], dy = c[1]-worldPoint[1], dz = c[2]-worldPoint[2];
+    const d2 = dx*dx + dy*dy + dz*dz;
+    if (d2 < bestD2) { bestD2 = d2; nearest = { actor, center: c }; }
+  }
+  const snappedPoint = nearest ? nearest.center : worldPoint;
+
+  // Deduplicate work with a small queue
+  const key = snappedPoint.map(v => Math.round(v/10)*10).join(',');
+  if (gazePredictor.prefetchQueue.has(key)) return;
+  gazePredictor.prefetchQueue.add(key);
+  if (gazePredictor.prefetchQueue.size > 50) {
+    const oldest = gazePredictor.prefetchQueue.values().next().value;
+    gazePredictor.prefetchQueue.delete(oldest);
+  }
+
+  let boosted = 0;
+  const baseRadius = gazePredictor.preFetchRadius;
+  const prefetchRadius = baseRadius * (0.7 + confidence * 0.6); // a bit wider than before
+
+  for (const actor of actors) {
+    const b = actor.getBounds();
+    const c = [(b[0]+b[1])/2, (b[2]+b[3])/2, (b[4]+b[5])/2];
+    const dx = c[0]-snappedPoint[0], dy = c[1]-snappedPoint[1], dz = c[2]-snappedPoint[2];
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    if (dist < prefetchRadius) {
+      const targetLOD = dist < prefetchRadius * 0.5 ? lodSystem.levels[0] : lodSystem.levels[1];
+      applyLODToActor(actor, targetLOD);
+      boosted++;
+    }
+  }
+
+  if (boosted > 0) {
+    gazePredictor.stats.successfulPrefetches += boosted;
+    logProgress(`Prefetched ${boosted} objects near predicted focus`);
+    renderWindow.render();
+  }
 }
 
 function getUserActivityLevel() {
@@ -2860,6 +3074,29 @@ function updateScene(fileData){
     
     mapper.setInputData(polyData);
     renderer.addActor(actor);
+    // Temporary demo: Add 4 test spheres for culling visualization
+// (Remove after testing)
+const testSpheres = [];
+for (let i = 0; i < 4; i++) {
+  const testSource = vtkSphereSource.newInstance();
+  testSource.setCenter(i * 200 - 300, 0, 0); // Spread out along X-axis
+  testSource.setRadius(50);
+  testSource.update();
+
+  const testMapper = vtkMapper.newInstance();
+  testMapper.setInputConnection(testSource.getOutputPort());
+
+  const testActor = vtkActor.newInstance();
+  testActor.setMapper(testMapper);
+  testActor.getProperty().setColor(i % 2 === 0 ? [1, 0, 0] : [0, 0, 1]); // Red/blue alternation
+  testActor.setVisibility(true);
+
+  renderer.addActor(testActor);
+  testSpheres.push(testActor);
+}
+
+// Log initial test setup
+logProgress(`Added ${testSpheres.length} test spheres for culling demo (positions: ${testSpheres.map(a => a.getProperty().getColor()).join(', ')})`);
     renderer.resetCamera();
     renderWindow.render();
     currentActor = actor;
@@ -3330,6 +3567,40 @@ function setupDimensionalityReductionControls() {
   weightsDisplayRow.appendChild(weightsDisplayCell);
   controlTable.appendChild(weightsDisplayRow);
 
+  // Gaze Prediction Toggle Row
+  const gazeRow = document.createElement('tr');
+  const gazeCell = document.createElement('td');
+  const gazeButton = document.createElement('button');
+  gazeButton.textContent = 'Toggle Gaze Prediction';
+  gazeButton.style.width = '100%';
+  gazeButton.style.backgroundColor = '#9C27B0';
+  gazeButton.style.color = 'white';
+  gazeButton.addEventListener('click', async () => {
+    if (!gazePredictor.model) {
+      await initializeGazePrediction();
+    } else {
+      gazePredictor.enabled = !gazePredictor.enabled;
+    }
+    const status = gazePredictor.enabled ? 'ON' : 'OFF';
+    gazeButton.textContent = `Gaze Prediction: ${status}`;
+    gazeButton.style.backgroundColor = gazePredictor.enabled ? '#4CAF50' : '#f44336';
+    logInfo(`Gaze prediction ${status}`);
+  });
+  gazeCell.appendChild(gazeButton);
+  gazeRow.appendChild(gazeCell);
+  controlTable.appendChild(gazeRow);
+
+  // Gaze Stats Display Row
+  const gazeStatsRow = document.createElement('tr');
+  const gazeStatsCell = document.createElement('td');
+  const gazeStatsDisplay = document.createElement('div');
+  gazeStatsDisplay.id = 'gaze-stats-display';
+  gazeStatsDisplay.style.cssText = 'font-size: 10px; text-align: left; padding: 5px; background: #f3e5f5; border-radius: 3px; line-height: 1.4;';
+  gazeStatsDisplay.innerHTML = 'Gaze Stats:<br>Predictions: 0<br>Avg Confidence: --<br>Prefetches: 0';
+  gazeStatsCell.appendChild(gazeStatsDisplay);
+  gazeStatsRow.appendChild(gazeStatsCell);
+  controlTable.appendChild(gazeStatsRow);
+
   // Update network quality display
   setInterval(() => {
     const networkDisplay = document.getElementById('network-quality-display');
@@ -3379,6 +3650,17 @@ function setupDimensionalityReductionControls() {
   setInterval(() => {
     updatePerformanceMetrics();
   }, 5000);
+
+  // Update gaze stats display
+  setInterval(() => {
+    const el = document.getElementById('gaze-stats-display');
+    if (el && gazePredictor) {
+      el.innerHTML = `Gaze Stats:<br>` +
+        `Total Predictions: ${gazePredictor.stats.totalPredictions}<br>` +
+        `Avg Confidence: ${(gazePredictor.stats.averageConfidence * 100).toFixed(1)}%<br>` +
+        `Prefetches: ${gazePredictor.stats.successfulPrefetches}`;
+    }
+  }, 1000);
 
   
   
@@ -3439,6 +3721,11 @@ async function initializeApplication() {
   initializeViewportCulling();
   initializeLODSystem();
   initializeAdaptiveStreaming();
+  await initializeGazePrediction();
+  camera.onModified(() => {
+    addCameraSample();
+    maybePredictNextFocal();
+  });
   
   // Setup UI controls
   setupDimensionalityReductionControls();
