@@ -28,9 +28,11 @@ A cutting-edge web-based platform featuring **intelligent adaptive streaming cap
 
 ### 🧠 **ML-Powered Gaze Prediction**
 - **LSTM Neural Network**: TensorFlow.js-based user behavior prediction
-- **Gaze Direction Tracking**: Real-time camera movement analysis
-- **Predictive Pre-fetching**: Anticipatory data loading for reduced latency
+- **Camera Motion Tracking**: Real-time direction and position analysis for better confidence
+- **Predictive Pre-fetching**: Anticipatory LOD boosting near predicted focal points
+- **Smart Confidence Scoring**: Motion-aware confidence that responds to both rotation and translation
 - **Memory-Optimized Processing**: Enhanced TensorFlow.js integration with automatic cleanup
+- **UI Controls**: Toggle button and live stats display for gaze prediction monitoring
 
 ### 🎛️ **Advanced Weighted Scoring System**
 - **Smart Weighted Average**: Network(40%), FPS(30%), Memory(30%) with intelligent scoring
@@ -118,6 +120,8 @@ let lodSystem = {
 - **Viewport Culling Toggle**: Control frustum culling optimization
 - **LOD System Toggle**: Manage level of detail optimization
 - **Performance Stats**: Real-time FPS, memory, and network monitoring
+- **Gaze Prediction Toggle**: Enable/disable ML-powered gaze prediction
+- **Gaze Stats Display**: Live monitoring of predictions, confidence, and prefetches
 
 ### **Weight Configuration System**
 - **Optimization Dropdown**: Select from Balanced, Network Focus, Performance Focus, Mobile Optimized
@@ -136,6 +140,8 @@ let lodSystem = {
 - **Optimization Statistics**: Culling ratios, LOD distribution, active features
 - **Smart Recommendations**: Context-aware optimization suggestions
 - **Performance Scoring**: Overall system performance assessment
+- **Gaze Prediction Stats**: Total predictions, average confidence, successful prefetches
+- **Reduced Log Noise**: FPS logs throttled, optimization logs only on change
 
 ---
 
@@ -193,6 +199,8 @@ npm start
 5. Open a second browser tab to test collaboration
 6. **Test Adaptive Streaming**: Select different optimization types from dropdown
 7. **Monitor Performance**: Watch real-time weight display and performance stats
+8. **Test Gaze Prediction**: Toggle gaze prediction and move camera to see confidence changes
+9. **Monitor Gaze Stats**: Watch predictions, confidence, and prefetch counts in real-time
 
 ### **Network Throttling Test**
 1. **Open Chrome DevTools** (F12)
@@ -202,6 +210,7 @@ npm start
    - ✅ **Floating red "LOW" notification** appears
    - ✅ **Weight display** shows network status change
    - ✅ **Console logs** show quality change with impact
+   - ✅ **Gaze prediction** automatically disabled in low network conditions
 
 ### **Distance Testing**
 1. **Load large VTP file**
@@ -210,12 +219,21 @@ npm start
    - ✅ **LOD quality changes** become more visible
    - ✅ **Weight display** shows LOD distribution
    - ✅ **Console logs** show LOD statistics
+   - ✅ **Gaze prediction** triggers prefetch when confidence is high
 
 ### **Weight Configuration Test**
 1. **Change weight dropdown** to different options
 2. **Watch for:**
    - ✅ **Weight display** updates in real-time
    - ✅ **Console logs** show optimization changes
+
+### **Gaze Prediction Test**
+1. **Enable gaze prediction** using the toggle button
+2. **Move camera around** (rotate and translate)
+3. **Watch for:**
+   - ✅ **Confidence drops** during fast camera movement
+   - ✅ **Prefetch counts increase** when confidence is high
+   - ✅ **Gaze stats update** in real-time
 
 ---
 
@@ -226,18 +244,21 @@ npm start
 - **Collaborative Research**: Real-time multi-user analysis with adaptive streaming
 - **VR Exploration**: Immersive data exploration with optimized performance
 - **Network-constrained Environments**: Work effectively on slow connections
+- **Predictive Analysis**: ML-powered gaze prediction for anticipatory data loading
 
 ### **Education**
 - **Interactive Learning**: Smooth 3D visualization regardless of network
 - **Remote Education**: Optimized for various network conditions
 - **VR Learning**: Immersive experiences with predictive loading
 - **Large Class Support**: Multiple users with adaptive quality
+- **Smart Prefetching**: Gaze prediction reduces loading times for better learning experience
 
 ### **Industry Applications**
 - **Engineering Analysis**: Large CAD models with intelligent optimization
 - **Medical Imaging**: High-resolution data with adaptive streaming
 - **Geological Data**: Massive terrain datasets with LOD optimization
 - **Manufacturing**: Quality control with predictive data loading
+- **Predictive Maintenance**: Gaze prediction for anticipatory data analysis
 
 ---
 
@@ -263,6 +284,7 @@ setMobileWeights();             // Network(40%), FPS(30%), Memory(30%)
 - **Automatic Weight Adjustment**: Dynamic weight changes based on bottlenecks
 - **Intelligent Feature Selection**: Enable only relevant optimizations
 - **Performance-Based Adaptation**: Quality adjustment based on real-time metrics
+- **Gaze Prediction Integration**: ML predictor automatically enabled/disabled based on system conditions
 
 ---
 
@@ -278,6 +300,9 @@ setMobileWeights();             // Network(40%), FPS(30%), Memory(30%)
 ✅ **Smart context-aware** decision making  
 ✅ **Visual quality notifications** for immediate feedback  
 ✅ **Real-time weight monitoring** for system transparency  
+✅ **Motion-aware confidence scoring** for better prediction accuracy  
+✅ **Smart prefetch targeting** with nearest-actor snapping  
+✅ **Reduced log noise** for cleaner development experience  
 
 ---
 
@@ -289,12 +314,16 @@ setMobileWeights();             // Network(40%), FPS(30%), Memory(30%)
 - **Mobile Optimization**: Touch-based interactions with network adaptation
 - **Advanced Caching**: Intelligent data caching strategies
 - **API Integration**: External data sources with adaptive loading
+- **Multi-user Gaze Prediction**: Collaborative gaze prediction for shared sessions
+- **Advanced Confidence Models**: More sophisticated confidence scoring algorithms
 
 ### **Research Directions**
 - **Advanced Gaze Prediction**: Multi-user gaze prediction
 - **Network-aware ML**: ML models that adapt to network conditions
 - **Collaborative Optimization**: Multi-user adaptive streaming
 - **Edge Computing**: Distributed processing with adaptive streaming
+- **Federated Learning**: Distributed gaze prediction training across users
+- **Context-Aware ML**: Models that adapt to specific use cases and user patterns
 
 ---
 
@@ -306,6 +335,8 @@ setMobileWeights();             // Network(40%), FPS(30%), Memory(30%)
 - **LOD System**: Distance-based quality scaling implementation
 - **ML Integration**: TensorFlow.js gaze prediction and pre-fetching
 - **Weight Management**: Dynamic optimization weight adjustment
+- **Gaze Prediction**: Camera motion tracking, confidence scoring, and prefetch integration
+- **Log Management**: Reduced noise with throttled FPS logs and change-only optimization logs
 
 ### **Technical Features**
 - **Visual Quality Notifications**: Floating popup notifications when quality changes
@@ -313,6 +344,9 @@ setMobileWeights();             // Network(40%), FPS(30%), Memory(30%)
 - **Enhanced LOD System**: More dramatic quality differences for better visibility
 - **Comprehensive Debugging**: Detailed console logging and performance metrics
 - **Smart Adaptive Streaming**: Context-aware optimization strategies
+- **Gaze Prediction UI**: Toggle controls and live statistics display
+- **Motion-Aware Confidence**: Confidence scoring that responds to both camera rotation and translation
+- **Smart Prefetching**: Nearest-actor targeting for better prefetch hit rates
 
 ---
 
@@ -324,6 +358,8 @@ setMobileWeights();             // Network(40%), FPS(30%), Memory(30%)
 3. **Performance slow**: Enable adaptive streaming and check network
 4. **Memory issues**: Use "Memory Status & Cleanup" button
 5. **Adaptive streaming not working**: Check network monitoring and enable adaptive streaming
+6. **Gaze prediction not working**: Check TensorFlow.js initialization and camera tracking
+7. **Low prefetch counts**: Increase gaze prediction radius or check scene scale
 
 ### **Server Issues**
 - **WebSocket disconnected**: Restart `node server.js`
@@ -334,6 +370,8 @@ setMobileWeights();             // Network(40%), FPS(30%), Memory(30%)
 - **Network monitoring not working**: Check browser connection API support
 - **Weight configuration not updating**: Verify dropdown selection and weight display
 - **Performance not improving**: Check if optimizations are enabled and working
+- **Gaze prediction confidence stuck at 100%**: Check camera movement tracking and velocity calculation
+- **No prefetches happening**: Verify gaze prediction is enabled and confidence threshold is met
 
 ---
 
